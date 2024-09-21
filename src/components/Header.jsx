@@ -9,7 +9,18 @@ import { IoMdAddCircleOutline } from "react-icons/io";
 import { HiCamera } from "react-icons/hi";
 import { AiOutlineClose } from "react-icons/ai";
 import { app } from "@/firebase";
-import { getDownloadURL, getStorage, uploadBytesResumable, ref } from "firebase/storage";
+import {
+  getDownloadURL,
+  getStorage,
+  uploadBytesResumable,
+  ref,
+} from "firebase/storage";
+import {
+  addDoc,
+  collection,
+  getFirestore,
+  serverTimestamp,
+} from "firebase/firestore";
 
 export default function Header() {
   const { data: session } = useSession();
@@ -18,31 +29,35 @@ export default function Header() {
   const [imageFileURL, setImageFileURL] = useState(null);
   const filePickerRef = useRef(null);
   const [imageFileUploading, setImageFileUploading] = useState(false);
+  const [postUploading, setPostUploading] = useState(false); // track the uploading of the post
+  const [caption, setCaption] = useState(""); //post caption
+  const db = getFirestore(app); //coming from firebase.js
 
-  function addImageToPost(event){
+  function addImageToPost(event) {
     const file = event.target.files[0];
-    if(file){
+    if (file) {
       setSelectedFile(file);
       setImageFileURL(URL.createObjectURL(file));
     }
   }
 
   useEffect(() => {
-   if(selectedFile){
-    uploadImageToStorage();
-   }
+    if (selectedFile) {
+      uploadImageToStorage();
+    }
   }, [selectedFile]);
 
-  async function uploadImageToStorage(){
+  async function uploadImageToStorage() {
     setImageFileUploading(true);
     const storage = getStorage(app);
     const fileName = new Date().getTime() + "-" + selectedFile.name;
-    const storageRef = ref(storage,fileName);
+    const storageRef = ref(storage, fileName);
     const uploadTask = uploadBytesResumable(storageRef, selectedFile);
     uploadTask.on(
       "state_changed",
       (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        const progress =
+          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
         console.log("Upload is " + progress + "% done");
       },
       (error) => {
@@ -58,9 +73,23 @@ export default function Header() {
         });
       }
     );
-} 
+  }
 
-return (
+  //it will be async because we need to wait for the image to upload
+  async function handleSubmit() {
+    setPostUploading(true);
+    const docRef = await addDoc(collection(db, 'posts'), {
+      username: session.user.username,
+      caption,
+      profileImg: session.user.image,
+      image: imageFileURL,
+      timestamp: serverTimestamp(),
+    });
+    setPostUploading(false);
+    setIsOpen(false);
+  }
+
+  return (
     <div className="shadow-sm border-b sticky top-0 bg-white z-30 p-3">
       <div className="flex justify-between items-center max-w-6xl mx-auto">
         {/* Logo */}
@@ -131,33 +160,48 @@ return (
                 src={imageFileURL}
                 alt="Selected File"
                 className={`w-full max-h-[250px] object-over cursor-pointer ${
-                  imageFileUploading ? "animate-pulse" : " " 
-                  }`}
+                  imageFileUploading ? "animate-pulse" : " "
+                }`}
               />
-            ):(
-              <HiCamera 
-              onClick={() => filePickerRef.current.click()}
-              className="text-45xl text-gray-400 cursor-pointer" 
+            ) : (
+              <HiCamera
+                onClick={() => filePickerRef.current.click()}
+                className="text-45xl text-gray-400 cursor-pointer"
               />
             )}
-            <input hidden ref={filePickerRef} type="file" accept="image/*" onChange={addImageToPost}/>
+            <input
+              hidden
+              ref={filePickerRef}
+              type="file"
+              accept="image/*"
+              onChange={addImageToPost}
+            />
           </div>
-          <input
+          <input //post caption
             type="text"
             maxLength="150"
             placeHolder="Please enter your caption..."
             className="m-4 border-none text-center w-full focus:ring-0 outline-none"
+            onChange={(e) => setCaption(e.target.value)}
           />
-          <button disabled className="w-full bg-blue-500 text-white p-2 shadow-md rounded-lg hover:brightness-105 disabled:bg-gray-200 disabled:cursor-not-allowed disabled:hover:brightness-100">
+          <button
+            onClick={handleSubmit}
+            disabled={
+              !selectedFile ||
+              caption.trim() == "" ||
+              postUploading ||
+              imageFileUploading
+            }
+            className="w-full bg-blue-500 text-white p-2 shadow-md rounded-lg hover:brightness-105 disabled:bg-gray-200 disabled:cursor-not-allowed disabled:hover:brightness-100"
+          >
             Upload Post
           </button>
-          <AiOutlineClose className="cursor-pointer absolute top-2 right-2 hover:text-blue-500 transition duration-300"
-          onClick={() => setIsOpen(false)}
+          <AiOutlineClose
+            className="cursor-pointer absolute top-2 right-2 hover:text-blue-500 transition duration-300"
+            onClick={() => setIsOpen(false)}
           />
         </Modal>
       )}
     </div>
   );
-
 }
-
