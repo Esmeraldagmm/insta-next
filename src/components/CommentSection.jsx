@@ -44,7 +44,7 @@ export default function CommentSection({ id }) {
                             alt="user image" 
                             className="h-7 w-7 rounded-full object-cover border p-[2px]"
                             />
-                            <p className="text-sm flex-1 truncate">
+                            <p className="text-sm flex-1 truncate pl-1">
                                 <span className="font-semibold">{comment.data().username}</span>{""}
                                 {comment.data().comment}
                             </p>
